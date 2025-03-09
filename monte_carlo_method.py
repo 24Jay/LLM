@@ -159,7 +159,7 @@ def test_rejection_sampling():
     plt.figure(figsize=(10, 6))
     
     # 绘制理论分布曲线
-    x = np.linspace(-3, 10, 1000)
+    x = np.linspace(-3, 5, 1000)
     y = complex_distribution(x)
     plt.plot(x, y, label='Target Distribution', linewidth=2)
     
@@ -176,7 +176,7 @@ def test_rejection_sampling():
     plt.show()
 
 
-def importance_sampling(target_dist, proposal_dist, proposal_sampler, num_samples=10000):
+def importance_sampling(target_dist, proposal_dist, proposal_sampler, num_samples=100000):
     """重要性采样方法
     
     参数:
@@ -232,9 +232,9 @@ def test_importance_sampling():
     plt.plot(x, target_dist(x), label='Target Distribution', linewidth=2)
     
     # 绘制加权直方图
-    plt.hist(samples, bins=50, weights=weights, density=True, 
+    plt.hist(samples, bins=100, weights=weights, density=True, 
              alpha=0.6, label='Importance Sampling')
-    plt.hist(samples, bins=50, density=True, alpha=0.3, label='Raw Samples')
+    plt.hist(samples, bins=100, density=True, alpha=0.3, label='Raw Samples')
     
     plt.title('Importance Sampling Test')
     plt.xlabel('x')
@@ -270,5 +270,5 @@ def test_monte_carlo_estimation():
 
 
 if __name__ == "__main__":
-    # test_rejection_sampling()
+    test_rejection_sampling()
     test_importance_sampling()
