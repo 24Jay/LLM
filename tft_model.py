@@ -88,4 +88,22 @@ if __name__ == "__main__":
     # 训练模型
     train_model(model, train_loader, criterion, optimizer, num_epochs=20) 
 
-    # 测试模型
+    # 测试模型，所有样本
+    # 准备测试数据
+    test_inputs = data[:-1].unsqueeze(1)  # 去掉最后一个数据点作为输入
+    test_targets = data[1:].unsqueeze(1)  # 去掉第一个数据点作为目标
+
+    # 模型预测
+    model.eval()  # 设置模型为评估模式
+    with torch.no_grad():
+        predictions = model(test_inputs)
+
+    # 可视化结果
+    plt.figure(figsize=(10, 6))
+    plt.plot(test_targets.numpy(), label='真实值')
+    plt.plot(predictions.numpy(), label='预测值')
+    plt.title('所有样本的预测结果')
+    plt.xlabel('时间步')
+    plt.ylabel('值')
+    plt.legend()
+    plt.show()
