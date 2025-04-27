@@ -111,13 +111,13 @@ class MultiHeadAttention(torch.nn.Module):
 
         attention_score = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
 
-        if mask:
+        if mask is not None:
             attention_score.masked_fill_(mask == 0, -1e9)
         attention_score = attention_score.softmax(
             dim=-1
         )  # (batch, head, seq_len, seq_len)
 
-        if dropout:
+        if dropout is not None:
             attention_score = dropout(attention_score)
 
         return (attention_score @ value), attention_score
@@ -180,6 +180,7 @@ class EncoderBlock(torch.nn.Module):
     def forward(self, x, src_mask):
         x = self.residual_connection[0](x, lambda x: self.attention(x, x, x, src_mask))
         x = self.residual_connection[1](x, self.feed_forward)
+        return x
 
 
 class Encoder(torch.nn.Module):
