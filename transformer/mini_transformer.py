@@ -38,7 +38,7 @@ class PositionalEmbedding(torch.nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        x = x + (self.pe[:, : self.x.shape[1], :]).requires_grad_(False)
+        x = x + (self.pe[:, : x.shape[1], :]).requires_grad_(False)
         return x
 
 
