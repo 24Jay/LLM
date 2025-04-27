@@ -285,8 +285,17 @@ class Transformer(torch.nn.Module):
         return self.proojection(x)
 
 
-
-def build_transformer(src_vocab_size:int, tgt_vocab_size:int, src_seq_len:int, tgt_seq_len:int, d_model:int=512, N:int = 6, h:int=8, dropout:float=0.1, d_ff:int): 
+def build_transformer(
+    src_vocab_size: int,
+    tgt_vocab_size: int,
+    src_seq_len: int,
+    tgt_seq_len: int,
+    d_model: int = 512,
+    N: int = 6,
+    h: int = 8,
+    dropout: float = 0.1,
+    d_ff: int = 128,
+):
 
     # create source embedding layer
     src_emb = InputEmbedding(d_model, src_vocab_size)
@@ -294,14 +303,16 @@ def build_transformer(src_vocab_size:int, tgt_vocab_size:int, src_seq_len:int, t
 
     # create positional embedding layer
     src_pos = PositionalEmbedding(src_seq_len, d_model, dropout)
-    tgt_pos = PositionalEmbedding(tgt_seq_len, d_model, dropout) 
+    tgt_pos = PositionalEmbedding(tgt_seq_len, d_model, dropout)
 
     # create encoder blocks
     encoder_blocks = []
     for _ in range(N):
         self_attention_block = MultiHeadAttention(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
-        encoder_blocks.append(EncoderBlock(self_attention_block, feed_forward_block, dropout))
+        encoder_blocks.append(
+            EncoderBlock(self_attention_block, feed_forward_block, dropout)
+        )
 
     # create decoder blocks
     decoder_blocks = []
@@ -309,16 +320,21 @@ def build_transformer(src_vocab_size:int, tgt_vocab_size:int, src_seq_len:int, t
         self_attention_block = MultiHeadAttention(d_model, h, dropout)
         cross_attention_block = MultiHeadAttention(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
-        decoder_blocks.append(DecoderBlock(self_attention_block, cross_attention_block, feed_forward_block, dropout))
+        decoder_blocks.append(
+            DecoderBlock(
+                self_attention_block, cross_attention_block, feed_forward_block, dropout
+            )
+        )
 
-    # create encoder 
+    # create encoder
     encoder = Encoder(torch.nn.ModuleList(encoder_blocks))
     decoder = Decoder(torch.nn.ModuleList(decoder_blocks))
 
     # create projection layer
     projection = ProjectionLayer(d_model, tgt_vocab_size)
-    transformer = Transformer(encoder, decoder, src_emb, tgt_emb, src_pos, tgt_pos, projection)
-
+    transformer = Transformer(
+        encoder, decoder, src_emb, tgt_emb, src_pos, tgt_pos, projection
+    )
 
     # initialize weights
     for p in transformer.parameters():
