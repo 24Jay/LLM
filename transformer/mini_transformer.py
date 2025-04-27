@@ -38,7 +38,8 @@ class PositionalEmbedding(torch.nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        x = x + (self.pe[:, : x.shape[1], :]).requires_grad_(False)
+        x_pos_emb = (self.pe[:, : x.shape[1], :]).requires_grad_(False)
+        x = x + x_pos_emb
         return x
 
 
@@ -67,7 +68,7 @@ class LayerNormalization(torch.nn.Module):
     def forward(self, x):
         mean = x.mean(dim=-1, keepdim=True)
         std = x.std(dim=-1, keepdim=True)
-        return self.alpha * (x - mean) / math.sqrt(std + self.eps) + self.bias
+        return self.alpha * (x - mean) / (std + self.eps) + self.bias
 
 
 class FeedForwardBlock(torch.nn.Module):
@@ -96,7 +97,7 @@ class MultiHeadAttention(torch.nn.Module):
         assert d_model % h == 0, "d_model must be divided by h"
         self.d_model = d_model
         self.h = h
-        self.d_k = d_model / h
+        self.d_k = d_model // h
         self.dropout = torch.nn.Dropout(dropout)
 
         self.wq = torch.nn.Linear(d_model, d_model)
@@ -273,13 +274,13 @@ class Transformer(torch.nn.Module):
 
     def encode(self, src, src_mask):
         src_emb = self.src_emb(src)
-        src_pos = self.src_pos(src)
-        return self.encoder(src_emb + src_pos, src_mask)
+        emb_with_pos = self.src_pos(src_emb)
+        return self.encoder(emb_with_pos, src_mask)
 
     def decode(self, encoder_output, src_mask, tgt, tgt_mask):
         tgt_emb = self.tgt_emb(tgt)
-        tgt_pos = self.tgt_pos(tgt)
-        return self.decoder(tgt + tgt_pos, encoder_output, src_mask, tgt_mask)
+        emb_with_pos = self.tgt_pos(tgt_emb)
+        return self.decoder(emb_with_pos, encoder_output, src_mask, tgt_mask)
 
     def project(self, x):
         return self.proojection(x)
