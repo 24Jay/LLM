@@ -29,7 +29,7 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
 
         prob = model.project(decoder_output[:, -1])
         _, next_word = torch.max(prob, dim=1)
-        decoder_input = torch.cat([decoder_input, torch.empty(1, 1).fill_(next_word.item()).type_as(next_word.item()).to(device)], dim=1)
+        decoder_input = torch.cat([decoder_input, torch.empty(1, 1).fill_(next_word.item()).type_as(source).to(device)], dim=1)
 
         if next_word == eos_idx:
             break
@@ -43,7 +43,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
     count = 0
 
-    source_text = []
+    source_texts = []
     expected = []
     predicted = []
 
@@ -67,7 +67,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
 
-            source_text.append(source_text)
+            source_texts.append(source_text)
             expected.append(target_text)
             predicted.append(model_out_text)
 
@@ -109,7 +109,7 @@ def get_ds(config):
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["tgt_lang"])
 
     # split train and val
-    train_ds_size = int(len(ds_raw) * 0.9)
+    train_ds_size = int(len(ds_raw) * 0.1)
     train_ds_raw, val_ds_raw = random_split(
         ds_raw, [train_ds_size, len(ds_raw) - train_ds_size]
     )
