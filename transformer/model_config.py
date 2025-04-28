@@ -11,7 +11,7 @@ def get_config():
         "datasource": "opus_books",
         # "datasource": "Helsinki-NLP/opus-100",
         "src_lang": "en",
-        "tgt_lang": "it",
+        "tgt_lang": "zh",
         "model_folder": "weights",
         "model_basename": "transformer_",
         "preload": "latest",

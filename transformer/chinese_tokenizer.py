@@ -3,36 +3,36 @@ from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 from pathlib import Path
+from datasets import load_dataset, load_from_disk
 
 
-# # 使用空白预分词器
-# tokenizer.pre_tokenizer = Whitespace()
-
-# # 初始化训练器
-# trainer = BpeTrainer(
-#     special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"],
-#     vocab_size=30000
-# )
-
-# # 训练文件列表 (每行一个句子)
-# files = ["train.txt"]
-
-# # 训练分词器
-# tokenizer.train(files, trainer)
-
-# # 保存分词器
-# tokenizer.save("custom-chinese-tokenizer.json")
 
 
-def get_or_build_tokenizer(config, ds, lang):
-    tokenizer_path = Path(config["tokenizer_file"].format(lang))
-    if not Path.exists(tokenizer_path):
-        # 初始化 BPE 模型
-        tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
-        tokenizer.pre_tokenizer = Whitespace()
-        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size=30000, min_frequency=2)
-        tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
-        tokenizer.save(str(tokenizer_path))
-    else:
-        tokenizer = Tokenizer.from_file(str(tokenizer_path))
-    return tokenizer
+def get_zh_en_dataset(num_examples=30000):
+    file_path = Path("./ds_file/zh_en_dataset")
+    if file_path.exists():
+        print("load from local file....")
+        ds = load_from_disk(str(file_path))
+        print(f"dataset from disk: {len(ds)=}")
+        return ds
+
+    # 加载中英文翻译数据集
+    ds = load_dataset("wmt/wmt19", "zh-en", split="train")
+    ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 128)
+    ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 128)
+    # ds = ds.shuffle(seed=42).select(range(10000))
+
+    # 采样5万条样本
+    ds = ds.shuffle(seed=42).select(range(num_examples))
+
+    print(f"wmt/wmt19 data len : {len(ds)}")
+    for i in range(5):
+        print(ds[i]["translation"])
+    
+    ds.save_to_disk(str(file_path))
+
+    return ds
+
+
+
+get_zh_en_dataset()

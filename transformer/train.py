@@ -15,6 +15,8 @@ from dataset import BilingualDataset, make_causal_mask
 from mini_transformer import build_transformer
 from tqdm import tqdm
 
+import chinese_tokenizer
+
 
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id("[SOS]")
@@ -119,8 +121,11 @@ def get_or_build_tokenizer(config, ds, lang):
 
 
 def get_ds(config):
-    ds_raw = load_dataset(config["datasource"],f"{config['src_lang']}-{config['tgt_lang']}", split="train" )
+    # ds_raw = load_dataset(config["datasource"],f"{config['src_lang']}-{config['tgt_lang']}", split="train" )
 
+    ds_raw = chinese_tokenizer.get_zh_en_dataset()
+
+    print(f"==============={config['datasource']}, {config['src_lang']}-{config['tgt_lang']}: len = {len(ds_raw)}===============")
     # build source and target tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["src_lang"])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["tgt_lang"])
