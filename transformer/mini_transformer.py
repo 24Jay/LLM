@@ -43,18 +43,18 @@ class PositionalEmbedding(torch.nn.Module):
         return x
 
 
-pe = PositionalEmbedding(seq_len=50, d_model=512, dropout=0.1)
+# pe = PositionalEmbedding(seq_len=50, d_model=512, dropout=0.1)
 
-pe.pe.numpy()
+# pe.pe.numpy()
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
-map = pe.pe.numpy().squeeze(0)
-print(map)
-plt.imshow(map)
+# map = pe.pe.numpy().squeeze(0)
+# print(map)
+# plt.imshow(map)
 
-plt.show()
+# plt.show()
 
 
 class LayerNormalization(torch.nn.Module):
