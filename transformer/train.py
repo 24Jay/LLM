@@ -11,7 +11,7 @@ from tokenizers.pre_tokenizers import Whitespace
 
 from pathlib import Path
 import model_config
-from dataset import BilingualDataset
+from dataset import BilingualDataset, make_causal_mask
 from mini_transformer import build_transformer
 from tqdm import tqdm
 
@@ -23,8 +23,64 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
     encoder_output = model.encode(source, source_mask)
     decoder_input = torch.empty(1, 1).fill_(sos_idx).type_as(source).to(device)
     for _ in range(max_len):
-        # decoder_mask = 
-        pass
+        decoder_mask = make_causal_mask(decoder_input.shape[1]).type_as(source_mask).to(device)
+
+        decoder_output = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
+
+        prob = model.project(decoder_output[:, -1])
+        _, next_word = torch.max(prob, dim=1)
+        decoder_input = torch.cat([decoder_input, torch.empty(1, 1).fill_(next_word.item()).type_as(next_word.item()).to(device)], dim=1)
+
+        if next_word == eos_idx:
+            break
+
+    return decoder_input.squeeze(0)
+
+
+
+def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+    model.eval()
+
+    count = 0
+
+    source_text = []
+    expected = []
+    predicted = []
+
+    try:
+        with os.popen("stty size", "r") as console:
+            _, console_width = console.read().split("\n")[0].split(" ")
+            console_width = int(console_width)
+    except:
+        console_width = 80
+    
+    with torch.no_grad():
+        for batch in validation_ds:
+            count += 1
+            encoder_input = batch["encoder_input"].to(device)
+            encoder_mask = batch["encoder_mask"].to(device)
+
+            assert encoder_input.shape[0] == 1, "batch size must be 1 for validation task"
+            model_out = greedy_decode(model, encoder_input, encoder_mask, tokenizer_src, tokenizer_tgt, max_len, device)
+
+            source_text = batch["src_text"][0]
+            target_text = batch["tgt_text"][0]
+            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
+
+            source_text.append(source_text)
+            expected.append(target_text)
+            predicted.append(model_out_text)
+
+            print_msg('-'*console_width)
+            print_msg(f"Source: {source_text}")
+            print_msg(f"Target: {target_text}")
+            print_msg(f"Predicted: {model_out_text}")
+
+            if count == num_examples:
+                print_msg('-'*console_width)
+                break
+    # if writer:
+
 
 
 def get_all_sentences(ds, lang):
