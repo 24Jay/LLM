@@ -5,8 +5,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from datasets import load_dataset
 from tokenizers import Tokenizer
-from tokenizers.models import WordLevel
-from tokenizers.trainers import WordLevelTrainer
+from tokenizers.models import WordLevel, BPE
+from tokenizers.trainers import WordLevelTrainer, BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
 from pathlib import Path
@@ -88,7 +88,24 @@ def get_all_sentences(ds, lang):
         yield item["translation"][lang]
 
 
+def get_or_build_chinese_tokenizer(config, ds, lang):
+    tokenizer_path = Path(config["tokenizer_file"].format(lang))
+    if not Path.exists(tokenizer_path):
+        # 初始化 BPE 模型
+        tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+        tokenizer.pre_tokenizer = Whitespace()
+        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size=30000, min_frequency=2)
+        tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
+        tokenizer.save(str(tokenizer_path))
+    else:
+        tokenizer = Tokenizer.from_file(str(tokenizer_path))
+    return tokenizer
+
+
 def get_or_build_tokenizer(config, ds, lang):
+    if lang == "zh":
+        return get_or_build_chinese_tokenizer(config, ds, lang)
+
     tokenizer_path = Path(config["tokenizer_file"].format(lang))
     if not Path.exists(tokenizer_path):
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
@@ -230,7 +247,7 @@ if __name__ == "__main__":
     #     # print(f"data {i}: {len(ds_raw[i]["translation"][config['src_lang']])}, {len(ds_raw[i]["translation"][config['tgt_lang']])}")
 
     # print(f"max src: {max_src}, max tgt: {max_tgt}")
-    # train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config=get_config())
+    # train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
 
     print(train_model(config))
 
