@@ -14,7 +14,7 @@ import model_config
 from dataset import BilingualDataset, make_causal_mask
 from mini_transformer import build_transformer
 from tqdm import tqdm
-
+from datetime import datetime
 import chinese_tokenizer
 
 
@@ -40,7 +40,7 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
 
 
 
-def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=2):
+def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, device, print_msg, global_step, writer, num_examples=4):
     model.eval()
 
     count = 0
@@ -123,7 +123,7 @@ def get_or_build_tokenizer(config, ds, lang):
 def get_ds(config):
     # ds_raw = load_dataset(config["datasource"],f"{config['src_lang']}-{config['tgt_lang']}", split="train" )
 
-    ds_raw = chinese_tokenizer.get_zh_en_dataset()
+    ds_raw = chinese_tokenizer.get_zh_en_dataset(num_examples=config["num_examples"])
 
     print(f"==============={config['datasource']}, {config['src_lang']}-{config['tgt_lang']}: len = {len(ds_raw)}===============")
     # build source and target tokenizers
@@ -174,15 +174,14 @@ def train_model(config):
 
     device = torch.device(device)
 
-    Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
+    # Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
     model = get_model(config, len(tokenizer_src.get_vocab()), len(tokenizer_tgt.get_vocab())).to(device)
 
-    writer = SummaryWriter(config["experiment_name"])
+    writer = SummaryWriter(log_dir=f"{model_config.get_log_path(config)}/{datetime.now()}")
     optim = torch.optim.Adam(model.parameters(), lr=config["lr"], betas=(0.9, 0.98), eps=1e-9)
 
-    model_file_name  = model_config.latest_weights_file_path(config)
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
 
     global_step = 0
@@ -207,6 +206,8 @@ def train_model(config):
             batch_iterator.set_postfix({"loss": f"{loss.item():6.3f}"})
 
             writer.add_scalar("Train/loss", loss.item(), global_step=global_step)
+            # lr
+            writer.add_scalar("Train/lr", optim.param_groups[0]["lr"], global_step=global_step)
             writer.flush()
 
             loss.backward()
@@ -219,13 +220,14 @@ def train_model(config):
                        lambda msg: batch_iterator.write(msg), global_step, writer)
 
 
+        model_file_path = model_config.get_model_path(config)
 
-    model_file_name = config.get_weights_file_path(config, epoch)
-    torch.save({
-        "epoch":epoch,
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optim.state_dict()
-    }, model_file_name)
+        Path(model_file_path).mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "epoch":epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optim.state_dict()
+        }, f"{model_file_path}/transformer_{epoch}.pth")
 
 
     
@@ -236,23 +238,6 @@ def train_model(config):
 if __name__ == "__main__":
 
     config = model_config.get_config()
-
-    # ds_raw = load_dataset(
-    #     config["datasource"],
-    #     f"{config['src_lang']}-{config['tgt_lang']}",
-    #     split="train",
-    # )
-
-    # print(f"data len:", len(ds_raw))
-
-    # max_src, max_tgt = 0, 0
-    # for i in range(len(ds_raw)):
-    #     max_src = max(max_src, len(ds_raw[i]["translation"][config["src_lang"]]))
-    #     max_tgt = max(max_tgt, len(ds_raw[i]["translation"][config["tgt_lang"]]))
-    #     # print(f"data {i}: {len(ds_raw[i]["translation"][config['src_lang']])}, {len(ds_raw[i]["translation"][config['tgt_lang']])}")
-
-    # print(f"max src: {max_src}, max tgt: {max_tgt}")
-    # train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
 
     print(train_model(config))
 

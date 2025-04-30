@@ -14,24 +14,25 @@ def get_zh_en_dataset(num_examples=30000):
         print("load from local file....")
         ds = load_from_disk(str(file_path))
         print(f"dataset from disk: {len(ds)=}")
+        ds = ds.shuffle(seed=42).select(range(num_examples))
         return ds
+    else:
+        # 加载中英文翻译数据集
+        ds = load_dataset("wmt/wmt19", "zh-en", split="train")
+        ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 128)
+        ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 128)
+        # ds = ds.shuffle(seed=42).select(range(10000))
 
-    # 加载中英文翻译数据集
-    ds = load_dataset("wmt/wmt19", "zh-en", split="train")
-    ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 128)
-    ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 128)
-    # ds = ds.shuffle(seed=42).select(range(10000))
+        # 采样5万条样本
+        ds = ds.shuffle(seed=42).select(range(num_examples))
 
-    # 采样5万条样本
-    ds = ds.shuffle(seed=42).select(range(num_examples))
+        print(f"wmt/wmt19 data len : {len(ds)}")
+        for i in range(5):
+            print(ds[i]["translation"])
+        
+        ds.save_to_disk(str(file_path))
 
-    print(f"wmt/wmt19 data len : {len(ds)}")
-    for i in range(5):
-        print(ds[i]["translation"])
-    
-    ds.save_to_disk(str(file_path))
-
-    return ds
+        return ds
 
 
 
