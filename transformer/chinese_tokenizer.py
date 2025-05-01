@@ -5,7 +5,7 @@ from tokenizers.pre_tokenizers import Whitespace
 from pathlib import Path
 from datasets import load_dataset, load_from_disk
 
-
+import re
 
 
 def get_zh_en_dataset(num_examples=30000):
@@ -19,16 +19,20 @@ def get_zh_en_dataset(num_examples=30000):
     else:
         # 加载中英文翻译数据集
         ds = load_dataset("wmt/wmt19", "zh-en", split="train")
-        ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 128)
-        ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 128)
+        print(f"wmt/wmt19 data len : {len(ds)}")
+        for i in range(5):
+            print(i, ": ", ds[i])
+
+        ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 150)
+
+        english_pattern = re.compile(r"[a-zA-Z]")
+        ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 150 and not english_pattern.search(example["translation"]["zh"]))
         # ds = ds.shuffle(seed=42).select(range(10000))
 
         # 采样5万条样本
         ds = ds.shuffle(seed=42).select(range(num_examples))
 
-        print(f"wmt/wmt19 data len : {len(ds)}")
-        for i in range(5):
-            print(ds[i]["translation"])
+       
         
         ds.save_to_disk(str(file_path))
 

@@ -16,7 +16,7 @@ from mini_transformer import build_transformer
 from tqdm import tqdm
 from datetime import datetime
 import chinese_tokenizer
-
+import model_params_summary
 
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id("[SOS]")
@@ -96,7 +96,7 @@ def get_or_build_chinese_tokenizer(config, ds, lang):
         # 初始化 BPE 模型
         tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size=30000, min_frequency=2)
+        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size = 10000, min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -177,10 +177,15 @@ def train_model(config):
     # Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
+    print(f"src_lang={config['src_lang']}, vocab_size={len(tokenizer_src.get_vocab())}")
+    print(f"tgt_lang={config['tgt_lang']}, vocab_size={len(tokenizer_tgt.get_vocab())}")
     model = get_model(config, len(tokenizer_src.get_vocab()), len(tokenizer_tgt.get_vocab())).to(device)
 
+    model_params_summary.compute_model_size(model)
+
     writer = SummaryWriter(log_dir=f"{model_config.get_log_path(config)}/{datetime.now()}")
-    optim = torch.optim.Adam(model.parameters(), lr=config["lr"], betas=(0.9, 0.98), eps=1e-9)
+    optim = torch.optim.Adam(model.parameters(), lr=config["lr"])
+    scheduler = torch.optim.lr_scheduler.StepLR(optim, step_size=1, gamma=0.6)
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
 
@@ -218,8 +223,6 @@ def train_model(config):
         
         run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt,config["seq_len"],device, \
                        lambda msg: batch_iterator.write(msg), global_step, writer)
-
-
         model_file_path = model_config.get_model_path(config)
 
         Path(model_file_path).mkdir(parents=True, exist_ok=True)
@@ -228,6 +231,8 @@ def train_model(config):
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optim.state_dict()
         }, f"{model_file_path}/transformer_{epoch}.pth")
+        scheduler.step()
+
 
 
     
