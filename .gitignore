@@ -9,3 +9,5 @@ __pycache__
 
 *.pth
 log/
+
+*translate_en_zh/

@@ -298,6 +298,16 @@ def build_transformer(
     dropout: float = 0.1,
     d_ff: int = 2048,
 ):
+    print(f"=============================================================================")
+    print(f"src_vocab_size: {src_vocab_size}")
+    print(f"tgt_vocab_size: {tgt_vocab_size}")
+    print(f"src_seq_len: {src_seq_len}")
+    print(f"tgt_seq_len: {tgt_seq_len}")
+    print(f"d_model: {d_model}")
+    print(f"N: {N}")
+    print(f"h: {h}")
+    print(f"dropout: {dropout}")
+    print(f"d_ff: {d_ff}\n")
 
     # create source embedding layer
     src_emb = InputEmbedding(d_model, src_vocab_size)

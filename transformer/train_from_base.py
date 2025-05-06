@@ -8,7 +8,7 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel, BPE
 from tokenizers.trainers import WordLevelTrainer, BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
-from torchmetrics.text import BLEUScore
+from torchmetrics.text import SacreBLEUScore
 
 import os
 from pathlib import Path
@@ -50,7 +50,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
     source_texts = []
     expected = []
-    predicted = []
+    predicted, predicted_raw = [], []
 
     try:
         with os.popen("stty size", "r") as console:
@@ -70,29 +70,33 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
-            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True).replace(" ", "")
+            model_out_text_raw = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)#.replace(" ", "")
+            model_out_text = model_out_text_raw.replace(" ", "")
 
             source_texts.append(source_text)
             expected.append(target_text)
+            predicted_raw.append(model_out_text_raw)
             predicted.append(model_out_text)
 
-            print_msg('-'*console_width)
-            print_msg(f"Source: {source_text}")
-            print_msg(f"Target: {target_text}")
-            print_msg(f"Predicted: {model_out_text}")
+            if count <= 5:
+                print_msg('-'*console_width)
+                print_msg(f"Source: {source_text}")
+                print_msg(f"Target: {target_text}")
+                print_msg(f"Predicted: {model_out_text}")
 
             if count == num_examples:
-                print_msg('-'*console_width)
+                # print_msg('-'*console_width)
                 break
         if writer:
-            bleu = BLEUScore()
-            print(f"========predicted: {len(predicted)}")
+            print(f"validate bleu: {len(predicted)}")
+            bleu = SacreBLEUScore(tokenize="zh")
             expected = [[e] for e in expected]
-            print(f"========expected: {len(expected)}")
             bleu_score = bleu(predicted, expected)
             writer.add_scalar("bleu", bleu_score, global_step)
             print_msg(f"BLEU score: {bleu_score}")
             writer.flush()
+        print_msg('-'*console_width)
+
 
 
 
@@ -124,7 +128,7 @@ def get_or_build_tokenizer(config, ds, lang):
     if not Path.exists(tokenizer_path):
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size = 10000, min_frequency=2)
+        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size = config["zh_vocab_size"], min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -172,6 +176,7 @@ def get_ds(config):
 
 
 def get_model(config, vocab_src_len, vocab_tgt_len):
+
     return build_transformer(
         src_vocab_size=vocab_src_len,
         tgt_vocab_size=vocab_tgt_len,
@@ -194,7 +199,6 @@ def train_model(config, base_model = ""):
     optim = torch.optim.Adam(model.parameters(), lr=config["lr"], betas=(0.9, 0.98), eps=1e-9)
     # scheduler = torch.optim.lr_scheduler.Step(optim, step_size=1, gamma=0.6)
 
-
     initial_epoch = 0
     if len(base_model) > 0 and Path(base_model).exists():
         print(f"Preloading model from {base_model}")
@@ -205,8 +209,6 @@ def train_model(config, base_model = ""):
 
     else:
         print(f"no model found, start from scratch: {base_model}")
-        # raise  FileNotFoundError(f"no model found: {base_model}")
-    
 
     model_params_summary.compute_model_size(model)
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
@@ -247,7 +249,7 @@ def train_model(config, base_model = ""):
             global_step += 1
         
         run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt,config["seq_len"],device, \
-                       lambda msg: batch_iterator.write(msg), global_step, writer, num_examples=10)
+                       lambda msg: batch_iterator.write(msg), global_step, writer, num_examples=100)
 
 
         torch.save({
@@ -266,7 +268,7 @@ if __name__ == "__main__":
 
     config = model_config.get_config(experiment_name="translate_en_zh")
 
-    train_model(config, base_model="")
+    train_model(config, base_model="./transformer/translate_en_zh/model/transformer_20.pth")
 
     # print(train_model(config, base_model="./transformer/translate_en_zh/model/transformer_19.pth"))
 
