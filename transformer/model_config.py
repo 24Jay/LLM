@@ -1,23 +1,36 @@
 from pathlib import Path
 
 
-def get_config():
+def get_config(experiment_name):
+    base_path = f"./transformer/{experiment_name}"
+
+    dataset_path = Path(f"{base_path}/dataset")
+    tokenizer_path = Path(f"{base_path}/tokenizer")
+    model_path = Path(f"{base_path}/model")
+    log_path = Path(f"{base_path}/logs")
+    
+    dataset_path.mkdir(parents=True, exist_ok=True)
+    tokenizer_path.mkdir(parents=True, exist_ok=True)
+    model_path.mkdir(parents=True, exist_ok=True)
+    log_path.mkdir(parents=True, exist_ok=True)
+
+
     return {
         "batch_size": 16,
         "num_epochs": 50,
         "lr": 1e-4,
         "seq_len": 350,
         "d_model": 512,
-        "datasource": "opus_books",
-        # "datasource": "Helsinki-NLP/opus-100",
+        # "datasource": "opus_books",
+        "datasource": "Helsinki-NLP/opus-100",
         "src_lang": "en",
         "tgt_lang": "zh",
-        "num_examples": 30000,
-        "model_folder": "weights",
-        "model_basename": "transformer_",
-        "preload": "latest",
-        "tokenizer_file": "tokenizer_{}.json",
-        "experiment_name": "./transformer/translate_en_zh",
+        "num_samples": 100,
+        "model_path": model_path,
+        "tokenizer_path": tokenizer_path,
+        "dataset_path": dataset_path,
+        "log_path": log_path,
+        "experiment_name": base_path,
     }
 
 
@@ -39,11 +52,11 @@ def get_weights_file_path(config, epoch: str):
 #     return str(weights_files[-1])
 
 
-def get_exp_path(config):
-    return config["experiment_name"]
+# def get_exp_path(config):
+#     return config["experiment_name"]
 
-def get_model_path(config):
-    return str(Path(".") / config["experiment_name"] / "model")
+# def get_model_path(config):
+#     return str(Path(".") / config["experiment_name"] / "model")
 
-def get_log_path(config):
-    return str(Path(".") / config["experiment_name"] / "log")
+# def get_log_path(config):
+#     return str(Path(".") / config["experiment_name"] / "log")

@@ -8,7 +8,9 @@ from tokenizers import Tokenizer
 from tokenizers.models import WordLevel, BPE
 from tokenizers.trainers import WordLevelTrainer, BpeTrainer
 from tokenizers.pre_tokenizers import Whitespace
+from torchmetrics.text import BLEUScore
 
+import os
 from pathlib import Path
 import model_config
 from dataset import BilingualDataset, make_causal_mask
@@ -16,6 +18,7 @@ from mini_transformer import build_transformer
 from tqdm import tqdm
 from datetime import datetime
 import chinese_tokenizer
+import model_params_summary
 
 
 def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_len, device):
@@ -67,7 +70,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
             source_text = batch["src_text"][0]
             target_text = batch["tgt_text"][0]
-            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True)
+            model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy(), skip_special_tokens=True).replace(" ", "")
 
             source_texts.append(source_text)
             expected.append(target_text)
@@ -81,7 +84,15 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             if count == num_examples:
                 print_msg('-'*console_width)
                 break
-    # if writer:
+        if writer:
+            bleu = BLEUScore()
+            print(f"========predicted: {len(predicted)}")
+            expected = [[e] for e in expected]
+            print(f"========expected: {len(expected)}")
+            bleu_score = bleu(predicted, expected)
+            writer.add_scalar("bleu", bleu_score, global_step)
+            print_msg(f"BLEU score: {bleu_score}")
+            writer.flush()
 
 
 
@@ -91,12 +102,13 @@ def get_all_sentences(ds, lang):
 
 
 def get_or_build_chinese_tokenizer(config, ds, lang):
-    tokenizer_path = Path(config["tokenizer_file"].format(lang))
+    tokenizer_path = Path(f"{config["tokenizer_path"]}/tokenizer_{lang}.json")
+
     if not Path.exists(tokenizer_path):
         # 初始化 BPE 模型
         tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size=30000, min_frequency=2)
+        trainer = BpeTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size=10000, min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -108,11 +120,11 @@ def get_or_build_tokenizer(config, ds, lang):
     if lang == "zh":
         return get_or_build_chinese_tokenizer(config, ds, lang)
 
-    tokenizer_path = Path(config["tokenizer_file"].format(lang))
+    tokenizer_path = Path(f"{config["tokenizer_path"]}/tokenizer_{lang}.json")
     if not Path.exists(tokenizer_path):
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size = 6000, min_frequency=2)
+        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], vocab_size = 10000, min_frequency=2)
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -121,9 +133,10 @@ def get_or_build_tokenizer(config, ds, lang):
 
 
 def get_ds(config):
-    # ds_raw = load_dataset(config["datasource"],f"{config['src_lang']}-{config['tgt_lang']}", split="train" )
-
-    ds_raw = chinese_tokenizer.get_zh_en_dataset(num_examples=config["num_examples"])
+    if config["tgt_lang"] == "zh":
+        ds_raw = chinese_tokenizer.get_zh_en_dataset(config)    
+    else:
+        ds_raw = load_dataset(config["datasource"],f"{config['src_lang']}-{config['tgt_lang']}", split="train" )
 
     print(f"==============={config['datasource']}, {config['src_lang']}-{config['tgt_lang']}: len = {len(ds_raw)}===============")
     # build source and target tokenizers
@@ -173,18 +186,17 @@ def train_model(config, base_model = ""):
     print(f"use device: {device}")
 
     device = torch.device(device)
-    # Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
     model = get_model(config, len(tokenizer_src.get_vocab()), len(tokenizer_tgt.get_vocab())).to(device)
 
-    writer = SummaryWriter(log_dir=f"{model_config.get_log_path(config)}/{datetime.now()}")
+    writer = SummaryWriter(log_dir=f"{config['log_path']}/{datetime.now()}")
     optim = torch.optim.Adam(model.parameters(), lr=config["lr"], betas=(0.9, 0.98), eps=1e-9)
     # scheduler = torch.optim.lr_scheduler.Step(optim, step_size=1, gamma=0.6)
 
 
     initial_epoch = 0
-    if Path(base_model).exists():
+    if len(base_model) > 0 and Path(base_model).exists():
         print(f"Preloading model from {base_model}")
         state = torch.load(base_model)
         model.load_state_dict(state["model_state_dict"])
@@ -193,9 +205,10 @@ def train_model(config, base_model = ""):
 
     else:
         print(f"no model found, start from scratch: {base_model}")
-        raise  FileNotFoundError(f"no model found: {base_model}")
+        # raise  FileNotFoundError(f"no model found: {base_model}")
     
 
+    model_params_summary.compute_model_size(model)
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
 
     global_step = 0
@@ -234,17 +247,14 @@ def train_model(config, base_model = ""):
             global_step += 1
         
         run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt,config["seq_len"],device, \
-                       lambda msg: batch_iterator.write(msg), global_step, writer)
+                       lambda msg: batch_iterator.write(msg), global_step, writer, num_examples=10)
 
 
-        model_file_path = model_config.get_model_path(config)
-
-        Path(model_file_path).mkdir(parents=True, exist_ok=True)
         torch.save({
             "epoch":epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optim.state_dict()
-        }, f"{model_file_path}/transformer_{epoch}.pth")
+        }, f"{config['model_path']}/transformer_{epoch}.pth")
 
 
     
@@ -254,8 +264,10 @@ def train_model(config, base_model = ""):
 
 if __name__ == "__main__":
 
-    config = model_config.get_config()
+    config = model_config.get_config(experiment_name="translate_en_zh")
 
-    print(train_model(config, base_model="./transformer/translate_en_zh/model/transformer_79.pth"))
+    train_model(config, base_model="")
+
+    # print(train_model(config, base_model="./transformer/translate_en_zh/model/transformer_19.pth"))
 
 

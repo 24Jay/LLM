@@ -8,13 +8,13 @@ from datasets import load_dataset, load_from_disk
 import re
 
 
-def get_zh_en_dataset(num_examples=30000):
-    file_path = Path("./ds_file/zh_en_dataset")
+def get_zh_en_dataset(config):
+    file_path = Path(f"{config['dataset_path']}/ds_{config["src_lang"]}_{config['tgt_lang']}")
     if file_path.exists():
         print("load from local file....")
         ds = load_from_disk(str(file_path))
         print(f"dataset from disk: {len(ds)=}")
-        ds = ds.shuffle(seed=42).select(range(num_examples))
+        ds = ds.shuffle(seed=42).select(range(config["num_samples"]))
         return ds
     else:
         # 加载中英文翻译数据集
@@ -23,14 +23,13 @@ def get_zh_en_dataset(num_examples=30000):
         for i in range(5):
             print(i, ": ", ds[i])
 
-        ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 150)
+        ds = ds.filter(lambda example: len(example["translation"]["en"].split()) <= 128)
 
         english_pattern = re.compile(r"[a-zA-Z]")
-        ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 150 and not english_pattern.search(example["translation"]["zh"]))
-        # ds = ds.shuffle(seed=42).select(range(10000))
+        ds = ds.filter(lambda example: len(example["translation"]["zh"].split()) <= 128 and not english_pattern.search(example["translation"]["zh"]))
 
         # 采样5万条样本
-        ds = ds.shuffle(seed=42).select(range(num_examples))
+        ds = ds.shuffle(seed=42).select(range(config["num_samples"]))
 
        
         
@@ -40,4 +39,4 @@ def get_zh_en_dataset(num_examples=30000):
 
 
 
-get_zh_en_dataset()
+# get_zh_en_dataset()
