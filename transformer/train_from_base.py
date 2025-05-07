@@ -266,9 +266,9 @@ def train_model(config, base_model = ""):
 
 if __name__ == "__main__":
 
-    config = model_config.get_config(experiment_name="translate_en_zh")
+    config = model_config.get_config(experiment_name="zh_en_base")
 
-    train_model(config, base_model="./transformer/translate_en_zh/model/transformer_20.pth")
+    train_model(config, base_model="")
 
     # print(train_model(config, base_model="./transformer/translate_en_zh/model/transformer_19.pth"))
 

@@ -25,7 +25,7 @@ def get_config(experiment_name):
         "datasource": "Helsinki-NLP/opus-100",
         "src_lang": "en",
         "tgt_lang": "zh",
-        "num_samples": 20000,
+        "num_samples": 3000000,
         "zh_vocab_size": 10000,
         "model_path": model_path,
         "tokenizer_path": tokenizer_path,
